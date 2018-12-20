@@ -58,4 +58,5 @@ ngx-build $force $version \
           --add-module=$root/../lua-nginx-module \
           --with-select_module \
           --with-poll_module \
-          --with-debug
+          --with-debug \
+          --with-threads
