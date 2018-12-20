@@ -1,0 +1,38 @@
+if [ $USE_THREADS != YES ]; then
+    cat << END
+
+$0: lua_io_nginx_module depends on the threads support, please reconfigure with "--with-threads" option.
+
+END
+    exit 1
+fi
+
+# threads support test has been done
+
+# this is a workaround, to include the private header files in ngx_lua module,
+# we need this to solve the context checking problem. 
+for header in $HTTP_LUA_DEPS
+do
+    if grep -q "ngx_http_lua_util.h" <<< $header; then
+        dir=`dirname $header`
+        CORE_INCS="$CORE_INCS $dir"
+        break
+    fi
+done
+
+ngx_addon_name=ngx_http_lua_io_module
+HTTP_LUA_IO_SRCS="$ngx_addon_dir/src/ngx_http_lua_io_module.c"
+
+if test -n "$ngx_module_link"; then
+    ngx_module_type=HTTP
+    ngx_module_name=$ngx_addon_name
+    ngx_module_srcs="$HTTP_LUA_IO_SRCS"
+
+    . auto/module
+else
+    HTTP_MODULES="$HTTP_MODULES $ngx_addon_name"
+    NGX_ADDON_SRCS="$NGX_ADDON_SRCS $HTTP_LUA_UPSTREAM_SRCS"
+
+    CORE_INCS="$CORE_INCS $ngx_module_incs"
+    CORE_LIBS="$CORE_LIBS $ngx_module_libs"
+fi
