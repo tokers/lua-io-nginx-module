@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # this file is mostly meant to be used by the author himself.
 
