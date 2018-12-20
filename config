@@ -13,7 +13,8 @@ fi
 # we need this to solve the context checking problem. 
 for header in $HTTP_LUA_DEPS
 do
-    if grep -q "ngx_http_lua_util.h" <<< $header; then
+    has=`echo $header | grep -q "ngx_http_lua_util.h"`
+    if [ -n $has ]; then
         dir=`dirname $header`
         CORE_INCS="$CORE_INCS $dir"
         break
