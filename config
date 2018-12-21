@@ -10,7 +10,10 @@ fi
 # threads support test has been done
 
 # this is a workaround, to include the private header files in ngx_lua module,
-# we need this to solve the context checking problem. 
+# we need this to solve the context checking problem, and remember to add the
+# ngx_lua module prior to this module. This embarrassed situation will be
+# avoided if ngx_lua module can expose some APIs to allow us check the current
+# request context.
 for header in $HTTP_LUA_DEPS
 do
     has=`echo $header | grep -q "ngx_http_lua_util.h"`
