@@ -1,6 +1,6 @@
 use Test::Nginx::Socket::Lua;
 
-repeat_each(1);
+repeat_each(3);
 
 plan tests => repeat_each() * 16;
 
@@ -74,7 +74,7 @@ thread_pool alex threads=1 max_queue=1;
     location /t {
         set $n1 a;
         set $n2 l;
-        lua_io_thread_pool ${n1}${n2};
+        lua_io_thread_pool $n1$n2;
         content_by_lua_block {
             local io = require "ngx.io"
             local ok, err = pcall(io.open, "conf/nginx.conf")
