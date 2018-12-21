@@ -42,7 +42,7 @@ thread_pool alex threads=1 max_queue=1;
     location /t {
         set $n1 a;
         set $n2 l;
-        lua_io_thread_pool ${n1}${n2}ex;
+        lua_io_thread_pool "${n1}${n2}ex";
         content_by_lua_block {
             local io = require "ngx.io"
             local file, err = io.open("conf/nginx.conf")
@@ -74,7 +74,7 @@ thread_pool alex threads=1 max_queue=1;
     location /t {
         set $n1 a;
         set $n2 l;
-        lua_io_thread_pool $n1$n2;
+        lua_io_thread_pool "${n1}${n2}";
         content_by_lua_block {
             local io = require "ngx.io"
             local ok, err = pcall(io.open, "conf/nginx.conf")
@@ -100,7 +100,7 @@ thread_pool alex threads=1 max_queue=1;
 --- config
     server_tokens off;
     location /t {
-        lua_io_thread_pool alex;
+        lua_io_thread_pool "alex";
         content_by_lua_block {
             local io = require "ngx.io"
             local file, err = io.open("conf/nginx.conf")
