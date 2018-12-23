@@ -2,7 +2,7 @@ use Test::Nginx::Socket::Lua;
 
 repeat_each(3);
 
-plan tests => repeat_each() * (3 * 4 + 4 * 4 + 8);
+plan tests => repeat_each() * (3 * 6 + 4 * 4 + 8);
 
 log_level 'debug';
 
@@ -521,6 +521,113 @@ thread_pool default threads=2 max_queue=10;
 --- request
 GET /t
 --- response_body: OK
+--- no_error_log
+[error]
+--- no_error_log
+[crit]
+
+
+
+=== TEST 10: execute file:write operations in subrequest
+--- main_config
+thread_pool default threads=2 max_queue=10;
+--- config
+    server_tokens off;
+    location /t {
+        content_by_lua_block {
+            local res = ngx.location.capture("/write")
+            ngx.status = res.status
+            ngx.print(res.body)
+        }
+    }
+    location /write {
+        internal;
+        content_by_lua_block {
+            local ngx_io = require "ngx.io"
+            local file, err = ngx_io.open("conf/test.txt", "w")
+            assert(type(file) == "table")
+            assert(err == nil)
+
+            local n, err = file:write("Hello, ")
+            assert(n == 7)
+            assert(err == nil)
+
+            local n, err = file:write("World")
+            assert(n == 5)
+            assert(err == nil)
+
+            local ok, err = file:close()
+            assert(ok)
+            assert(err == nil)
+
+            local prefix = ngx.config.prefix()
+            local name = prefix .. "/conf/test.txt"
+
+            local f = io.open(name, "r")
+            local data = f:read("*a")
+            f:close()
+
+            os.execute("rm -f " .. name)
+            ngx.print(data)
+        }
+    }
+
+--- request
+GET /t
+--- response_body: Hello, World
+--- no_error_log
+[error]
+--- no_error_log
+[crit]
+
+
+
+=== TEST 10: execute file:write operations in other light thread
+--- main_config
+thread_pool default threads=2 max_queue=10;
+--- config
+    server_tokens off;
+    location /t {
+        content_by_lua_block {
+            local f = function()
+                local ngx_io = require "ngx.io"
+                local file, err = ngx_io.open("conf/test.txt", "w")
+                assert(type(file) == "table")
+                assert(err == nil)
+
+                local n, err = file:write("Hello, ")
+                assert(n == 7)
+                assert(err == nil)
+
+                local n, err = file:write("World")
+                assert(n == 5)
+                assert(err == nil)
+
+                local ok, err = file:close()
+                assert(ok)
+                assert(err == nil)
+            end
+
+            local co = ngx.thread.spawn(f)
+
+            local ok = ngx.thread.wait(co)
+            assert(ok)
+
+            local prefix = ngx.config.prefix()
+            local name = prefix .. "/conf/test.txt"
+
+            local f = io.open(name, "r")
+            local data = f:read("*a")
+            f:close()
+
+            os.execute("rm -f " .. name)
+            ngx.print(data)
+        }
+    }
+
+--- request
+GET /t
+--- response_body: Hello, World
 --- no_error_log
 [error]
 --- no_error_log
