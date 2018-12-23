@@ -12,8 +12,7 @@
 
 static ngx_chain_t *ngx_http_lua_io_chain_to_iovec(ngx_iovec_t *vec,
     ngx_chain_t *cl);
-static ngx_int_t
-ngx_http_lua_io_thread_post_task(ngx_thread_task_t *task,
+static ngx_int_t ngx_http_lua_io_thread_post_task(ngx_thread_task_t *task,
     ngx_http_lua_io_file_ctx_t *file_ctx);
 static void ngx_http_lua_io_thread_write_chain_to_file(void *data,
     ngx_log_t *log);
