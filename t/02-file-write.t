@@ -2,7 +2,7 @@ use Test::Nginx::Socket::Lua;
 
 repeat_each(3);
 
-plan tests => repeat_each() * (3 * 6 + 4 * 4 + 8);
+plan tests => repeat_each() * (3 * 6 + 4 * 5 + 8);
 
 log_level 'debug';
 
@@ -42,6 +42,8 @@ GET /t
 --- response_body: OK
 --- no_error_log
 [error]
+--- no_error_log
+[crit]
 
 
 
@@ -630,5 +632,42 @@ GET /t
 --- response_body: Hello, World
 --- no_error_log
 [error]
+--- no_error_log
+[crit]
+
+
+=== TEST 11: try to write data on a closed file handle
+--- main_config
+thread_pool default threads=2 max_queue=10;
+--- config
+    server_tokens off;
+    location /t {
+        lua_io_log_errors on;
+        content_by_lua_block {
+            local ngx_io = require "ngx.io"
+            local file, err = ngx_io.open("conf/test.txt", "w")
+            assert(type(file) == "table")
+            assert(err == nil)
+
+            local ok, err = file:close()
+            assert(ok)
+            assert(err == nil)
+
+            local n, err = file:write("Hello")
+            assert(not n)
+            ngx.print(err)
+
+            local prefix = ngx.config.prefix()
+            local name = prefix .. "/conf/test.txt"
+
+            os.execute("rm -f " .. name)
+        }
+    }
+
+--- request
+GET /t
+--- response_body: closed
+--- error_log
+attempt to write data on a closed file object
 --- no_error_log
 [crit]
