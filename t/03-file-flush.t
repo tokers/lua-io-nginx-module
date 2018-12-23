@@ -182,7 +182,7 @@ lua io flush done and resume
 
 
 
-=== TEST 3: flush on a closed file handle
+=== TEST 4: flush on a closed file handle
 --- main_config
 thread_pool default threads=2 max_queue=10;
 --- config
