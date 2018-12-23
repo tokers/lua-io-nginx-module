@@ -323,6 +323,10 @@ ngx_http_lua_io_extract_mode(ngx_http_lua_io_file_ctx_t *ctx,
         }
     }
 
+    if (ch != 'a' && (ctx->mode & NGX_HTTP_LUA_IO_FILE_WRITE_MODE)) {
+        flags |= O_TRUNC;
+    }
+
     return flags;
 }
 

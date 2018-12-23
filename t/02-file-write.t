@@ -444,7 +444,7 @@ thread_pool default threads=2 max_queue=10;
 --- request
 GET /t
 --- response_body eval
-"World, "
+"World"
 --- grep_error_log: lua io thread event handler
 --- grep_error_log_out
 lua io thread event handler
