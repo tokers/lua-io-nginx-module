@@ -758,13 +758,17 @@ ngx_http_lua_io_thread_event_handler(ngx_event_t *ev)
 {
     ngx_http_lua_io_file_ctx_t *file_ctx = ev->data;
 
+    ngx_connection_t    *c;
     ngx_http_request_t  *r;
     ngx_http_lua_ctx_t  *lctx;
 
     r = file_ctx->request;
+    c = r->connection;
 
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "lua io thread event handler");
+
+    ev->complete = 0;
 
     r->main->blocked--;
     r->aio = 0;
@@ -775,7 +779,7 @@ ngx_http_lua_io_thread_event_handler(ngx_event_t *ev)
     lctx->cur_co_ctx = file_ctx->coctx;
 
     r->write_event_handler(r);
-    ngx_http_run_posted_requests(r->connection);
+    ngx_http_run_posted_requests(c);
 
     return;
 }
