@@ -34,6 +34,13 @@
         return 2;                                                             \
     }
 
+#define ngx_http_lua_io_check_busy_flushing(r, ctx, L)                        \
+    if ((ctx)->flush_waiting) {                                               \
+        lua_pushnil(L);                                                       \
+        lua_pushliteral(L, "io busy flushing");                               \
+        return 2;                                                             \
+    }
+
 
 typedef struct {
     ngx_flag_t                  log_errors;
@@ -52,6 +59,7 @@ static int ngx_http_lua_io_create_module(lua_State *L);
 static int ngx_http_lua_io_open(lua_State *L);
 static int ngx_http_lua_io_file_close(lua_State *L);
 static int ngx_http_lua_io_file_write(lua_State *L);
+static int ngx_http_lua_io_file_flush(lua_State *L);
 static int ngx_http_lua_io_file_destory(lua_State *L);
 static void ngx_http_lua_io_file_cleanup(void *data);
 static void ngx_http_lua_io_coctx_cleanup(void *data);
@@ -239,12 +247,13 @@ ngx_http_lua_io_create_module(lua_State *L)
     lua_pushcfunction(L, ngx_http_lua_io_file_write);
     lua_setfield(L, -2, "write");
 
+    lua_pushcfunction(L, ngx_http_lua_io_file_flush);
+    lua_setfield(L, -2, "flush");
+
 #if 0
     lua_pushcfunction(L, ngx_http_lua_io_file_read);
     lua_setfield(L, -2, "read");
 
-    lua_pushcfunction(L, ngx_http_lua_io_file_flush);
-    lua_setfield(L, -2, "flush");
 
     lua_pushcfunction(L, ngx_http_lua_io_file_seek);
     lua_setfield(L, -2, "seek");
@@ -526,6 +535,7 @@ ngx_http_lua_io_file_close(lua_State *L)
 
     ngx_http_lua_io_check_busy_reading(r, ctx, L);
     ngx_http_lua_io_check_busy_writing(r, ctx, L);
+    ngx_http_lua_io_check_busy_flushing(r, ctx, L);
 
     ngx_http_lua_io_file_finalize(r, ctx);
 
@@ -721,6 +731,97 @@ ngx_http_lua_io_file_write(lua_State *L)
 }
 
 
+static int
+ngx_http_lua_io_file_flush(lua_State *L)
+{
+    ngx_http_request_t          *r;
+    ngx_http_lua_io_file_ctx_t  *file_ctx;
+    ngx_http_lua_io_loc_conf_t  *iocf;
+    ngx_http_lua_co_ctx_t       *coctx;
+    ngx_http_lua_ctx_t          *ctx;
+
+    if (NGX_UNLIKELY(lua_gettop(L) != 1)) {
+        return luaL_error(L, "expecting one argument, but got %d",
+                          lua_gettop(L));
+    }
+
+    r = ngx_http_lua_get_request(L);
+    if (NGX_UNLIKELY(r == NULL)) {
+        return luaL_error(L, "no request found");
+    }
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_rawgeti(L, 1, NGX_HTTP_LUA_IO_FILE_CTX_INDEX);
+
+    file_ctx = lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                   "lua io flush");
+
+    if (file_ctx == NULL || file_ctx->closed) {
+        iocf = ngx_http_get_module_loc_conf(r, ngx_http_lua_io_module);
+        if (iocf->log_errors) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                          "attempt to flush data on a closed file object");
+        }
+
+        lua_pushnil(L);
+        lua_pushliteral(L, "closed");
+        return 2;
+    }
+
+    if (NGX_UNLIKELY(r != file_ctx->request)) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "bad request");
+        return 2;
+    }
+
+    ngx_http_lua_io_check_busy_reading(r, file_ctx, L);
+    ngx_http_lua_io_check_busy_writing(r, file_ctx, L);
+    ngx_http_lua_io_check_busy_flushing(r, file_ctx, L);
+
+    if (NGX_UNLIKELY(!(file_ctx->mode & NGX_HTTP_LUA_IO_FILE_WRITE_MODE))) {
+
+        /* FIXME need to be compatible with libc? */
+        lua_pushnil(L);
+        lua_pushliteral(L, "operation not permitted");
+        return 2;
+    }
+
+    if (NGX_UNLIKELY(ngx_http_lua_io_thread_post_flush_task(file_ctx)
+        == NGX_ERROR))
+    {
+        return ngx_http_lua_io_handle_error(L, r, file_ctx);
+    }
+
+    /* NGX_AGAIN */
+
+    file_ctx->flush_waiting = 1;
+
+    ctx = ngx_http_get_module_ctx(r, ngx_http_lua_module);
+    coctx = ctx->cur_co_ctx;
+
+    ngx_http_lua_cleanup_pending_operation(coctx);
+    coctx->cleanup = ngx_http_lua_io_coctx_cleanup;
+    coctx->data = file_ctx;
+
+    file_ctx->coctx = coctx;
+
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                   "lua io flush saved co ctx:%p", coctx);
+
+    if (ctx->entered_content_phase) {
+        r->write_event_handler = ngx_http_lua_io_content_wev_handler;
+
+    } else {
+        r->write_event_handler = ngx_http_core_run_phases;
+    }
+
+    return lua_yield(L, 0);
+}
+
+
 static void
 ngx_http_lua_io_coctx_cleanup(void *data)
 {
@@ -792,6 +893,7 @@ ngx_http_lua_io_thread_event_handler(ngx_event_t *ev)
 static ngx_int_t
 ngx_http_lua_io_resume(ngx_http_request_t *r)
 {
+    const char                    *action;
     ngx_int_t                      rc, n;
     ngx_uint_t                     nreqs;
     lua_State                     *L;
@@ -816,9 +918,18 @@ ngx_http_lua_io_resume(ngx_http_request_t *r)
 
     file_ctx = coctx->data;
 
+    if (file_ctx->write_waiting) {
+        action = "write";
+
+    } else if (file_ctx->read_waiting) {
+        action = "read";
+
+    } else {
+        action = "flush";
+    }
+
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                   "lua io %s done and resume",
-                   file_ctx->write_waiting ? "write" : "read");
+                   "lua io %s done and resume", action);
 
     L = ngx_http_lua_get_lua_vm(r, lctx);
 
@@ -837,6 +948,12 @@ ngx_http_lua_io_resume(ngx_http_request_t *r)
         ngx_chain_update_chains(r->pool, &lctx->free_bufs, &lctx->busy_bufs,
                                 &thread_ctx->chain,
                                 (ngx_buf_tag_t) &ngx_http_lua_io_module);
+
+    } else if (file_ctx->flush_waiting) {
+        file_ctx->flush_waiting = 0;
+
+        n = 1;
+        lua_pushboolean(coctx->co, 1);
 
     } else {
         file_ctx->read_waiting = 0;
