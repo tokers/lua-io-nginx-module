@@ -17,6 +17,7 @@ thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local io = require "ngx.io"
             local file, err = io.open("conf/test.txt", "a")
@@ -53,6 +54,7 @@ thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local ngx_io = require "ngx.io"
             local file, err = ngx_io.open("conf/test.txt", "w")
@@ -111,6 +113,7 @@ thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local ngx_io = require "ngx.io"
             local file, err = ngx_io.open("conf/test.txt", "w")
@@ -156,12 +159,13 @@ lua io write done and resume
 
 
 
-=== TEST 3: table write
+=== TEST 4: table write
 --- main_config
 thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local ngx_io = require "ngx.io"
             local file, err = ngx_io.open("conf/test.txt", "w")
@@ -208,12 +212,13 @@ lua io write done and resume
 
 
 
-=== TEST 4: string, number write
+=== TEST 5: string, number write
 --- main_config
 thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local ngx_io = require "ngx.io"
             local file, err = ngx_io.open("conf/test.txt", "w")
@@ -272,12 +277,13 @@ lua io write done and resume
 
 
 
-=== TEST 5: bad write (bad parameter type)
+=== TEST 6: bad write (bad parameter type)
 --- main_config
 thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local ngx_io = require "ngx.io"
             local file, err = ngx_io.open("conf/test.txt", "w")
@@ -305,12 +311,13 @@ qr/.*non-array table found/
 
 
 
-=== TEST 6: try to write but miss the write permission
+=== TEST 7: try to write but miss the write permission
 --- main_config
 thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local ngx_io = require "ngx.io"
             local file, err = ngx_io.open("conf/nginx.conf", "r")
@@ -335,12 +342,13 @@ GET /t
 
 
 
-=== TEST 7: append mode
+=== TEST 8: append mode
 --- main_config
 thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         rewrite_by_lua_block {
             local ngx_io = require "ngx.io"
             local file, err = ngx_io.open("conf/test.txt", "a")
@@ -400,12 +408,13 @@ lua io open mode:"a"
 
 
 
-=== TEST 8: append mode first, then the normal write mode follows
+=== TEST 9: append mode first, then the normal write mode follows
 --- main_config
 thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         rewrite_by_lua_block {
             local ngx_io = require "ngx.io"
             local file, err = ngx_io.open("conf/test.txt", "a")
@@ -468,12 +477,13 @@ lua io open mode:"w"
 
 
 
-=== TEST 9: write multiple times with varying the write stuff's size
+=== TEST 10: write multiple times with varying the write stuff's size
 --- main_config
 thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local ngx_io = require "ngx.io"
             local file, err = ngx_io.open("conf/test.txt", "w")
@@ -530,12 +540,13 @@ GET /t
 
 
 
-=== TEST 10: execute file:write operations in subrequest
+=== TEST 11: execute file:write operations in subrequest
 --- main_config
 thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local res = ngx.location.capture("/write")
             ngx.status = res.status
@@ -544,6 +555,7 @@ thread_pool default threads=2 max_queue=10;
     }
     location /write {
         internal;
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local ngx_io = require "ngx.io"
             local file, err = ngx_io.open("conf/test.txt", "w")
@@ -584,12 +596,13 @@ GET /t
 
 
 
-=== TEST 10: execute file:write operations in other light thread
+=== TEST 12: execute file:write operations in other light thread
 --- main_config
 thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local f = function()
                 local ngx_io = require "ngx.io"
@@ -636,13 +649,14 @@ GET /t
 [crit]
 
 
-=== TEST 11: try to write data on a closed file handle
+=== TEST 13: try to write data on a closed file handle
 --- main_config
 thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
         lua_io_log_errors on;
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local ngx_io = require "ngx.io"
             local file, err = ngx_io.open("conf/test.txt", "w")

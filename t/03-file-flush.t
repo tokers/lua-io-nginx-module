@@ -17,13 +17,14 @@ thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local io = require "ngx.io"
             local file, err = io.open("conf/test.txt", "w")
             assert(type(file) == "table")
             assert(err == nil)
 
-            local n, err = file:flush()
+            local n, err = file:flush(true)
             assert(n)
             assert(err == nil)
 
@@ -60,6 +61,7 @@ thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local _io = io
             local io = require "ngx.io"
@@ -72,7 +74,7 @@ thread_pool default threads=2 max_queue=10;
             assert(n == #data)
             assert(err == nil)
 
-            local n, err = file:flush()
+            local n, err = file:flush(true)
             assert(n)
             assert(err == nil)
 
@@ -121,6 +123,7 @@ thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         content_by_lua_block {
             local _io = io
             local io = require "ngx.io"
@@ -133,11 +136,11 @@ thread_pool default threads=2 max_queue=10;
             assert(n == #data)
             assert(err == nil)
 
-            local n, err = file:flush()
+            local n, err = file:flush(true)
             assert(n)
             assert(err == nil)
 
-            local n, err = file:flush()
+            local n, err = file:flush(true)
             assert(n)
             assert(err == nil)
 
@@ -188,6 +191,7 @@ thread_pool default threads=2 max_queue=10;
 --- config
     server_tokens off;
     location /t {
+        lua_io_write_buffer_size 0;
         lua_io_log_errors on;
         content_by_lua_block {
             local _io = io
@@ -205,7 +209,7 @@ thread_pool default threads=2 max_queue=10;
             assert(ok)
             assert(err == nil)
 
-            local n, err = file:flush()
+            local n, err = file:flush(true)
             assert(not n)
             ngx.print(err)
 

@@ -33,7 +33,7 @@ typedef struct {
     ngx_thread_task_t          *thread_task;
     ngx_thread_pool_t          *thread_pool;
 
-    ngx_chain_t                *request_bufs;
+    ngx_chain_t                *bufs_out;
     ngx_chain_t                *bufs_in;
     ngx_chain_t                *buf_in;
     ngx_buf_t                   buffer;
@@ -49,12 +49,15 @@ typedef struct {
     off_t                       write_offset;
     off_t                       read_offset;
 
+    size_t                      nbytes;
+
     unsigned                    mode;
     unsigned                    ft_type;
 
     unsigned                    read_waiting:1;
     unsigned                    write_waiting:1;
     unsigned                    flush_waiting:1;
+    unsigned                    closing:1;
     unsigned                    closed:1;
 } ngx_http_lua_io_file_ctx_t;
 
@@ -67,13 +70,13 @@ typedef struct {
 
     ngx_err_t                   err;
     size_t                      nbytes;
+
+    unsigned                    flush:1;
 } ngx_http_lua_io_thread_ctx_t;
 
 
 ngx_int_t ngx_http_lua_io_thread_post_write_task(
-    ngx_http_lua_io_file_ctx_t *file_ctx, ngx_chain_t *cl);
-ngx_int_t ngx_http_lua_io_thread_post_flush_task(
-    ngx_http_lua_io_file_ctx_t *file_ctx);
+    ngx_http_lua_io_file_ctx_t *file_ctx, ngx_chain_t *cl, ngx_int_t flush);
 
 
 #endif /* _NGX_HTTP_LUA_IO_H_INCLUDED_ */

@@ -16,7 +16,6 @@ static ngx_int_t ngx_http_lua_io_thread_post_task(ngx_thread_task_t *task,
     ngx_http_lua_io_file_ctx_t *file_ctx);
 static void ngx_http_lua_io_thread_write_chain_to_file(void *data,
     ngx_log_t *log);
-static void ngx_http_lua_io_thread_flush_file(void *data, ngx_log_t *log);
 
 
 static ngx_chain_t *
@@ -108,6 +107,10 @@ ngx_http_lua_io_thread_write_chain_to_file(void *data, ngx_log_t *log)
     ctx->nbytes = 0;
     ctx->err = 0;
 
+    if (cl == NULL && ctx->flush) {
+        goto flush;
+    }
+
     do {
         /* create the iovec and coalesce the neighbouring bufs */
         cl = ngx_http_lua_io_chain_to_iovec(&vec, cl);
@@ -137,18 +140,10 @@ eintr:
         ctx->nbytes += n;
         offset += n;
     } while (cl);
-}
 
+flush:
 
-static void
-ngx_http_lua_io_thread_flush_file(void *data, ngx_log_t *log)
-{
-    ngx_http_lua_io_thread_ctx_t *ctx = data;
-
-    int rc;
-
-    rc = fsync(ctx->fd);
-    if (rc < 0) {
+    if(ctx->flush && fsync(ctx->fd) < 0) {
         ctx->err = ngx_errno;
     }
 }
@@ -156,7 +151,7 @@ ngx_http_lua_io_thread_flush_file(void *data, ngx_log_t *log)
 
 ngx_int_t
 ngx_http_lua_io_thread_post_write_task(ngx_http_lua_io_file_ctx_t *file_ctx,
-    ngx_chain_t *cl)
+    ngx_chain_t *cl, ngx_int_t flush)
 {
     off_t                          offset;
     ngx_thread_task_t             *task;
@@ -166,9 +161,9 @@ ngx_http_lua_io_thread_post_write_task(ngx_http_lua_io_file_ctx_t *file_ctx,
     r = file_ctx->request;
     offset = file_ctx->write_offset;
 
-    ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                   "lua io thread write chain: %d, %p, %O",
-                   file_ctx->file.fd, cl, offset);
+    ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                   "lua io thread write chain: %d, %p, %O flush:%d",
+                   file_ctx->file.fd, cl, offset, flush);
 
     task = file_ctx->thread_task;
 
@@ -191,50 +186,7 @@ ngx_http_lua_io_thread_post_write_task(ngx_http_lua_io_file_ctx_t *file_ctx,
     thread_ctx->offset = offset;
     thread_ctx->err = 0;
     thread_ctx->nbytes = 0;
-
-    if (ngx_http_lua_io_thread_post_task(task, file_ctx) != NGX_OK) {
-        file_ctx->ft_type |= NGX_HTTP_LUA_IO_FT_TASK_POST_ERROR;
-        return NGX_ERROR;
-    }
-
-    return NGX_OK;
-}
-
-
-
-ngx_int_t
-ngx_http_lua_io_thread_post_flush_task(ngx_http_lua_io_file_ctx_t *file_ctx)
-{
-    ngx_thread_task_t             *task;
-    ngx_http_lua_io_thread_ctx_t  *thread_ctx;
-    ngx_http_request_t            *r;
-
-    r = file_ctx->request;
-
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                   "lua io thread flush: %d", file_ctx->file.fd);
-
-    task = file_ctx->thread_task;
-
-    if (task == NULL) {
-        task = ngx_thread_task_alloc(r->pool,
-                                     sizeof(ngx_http_lua_io_thread_ctx_t));
-        if (task == NULL) {
-            file_ctx->ft_type |= NGX_HTTP_LUA_IO_FT_NO_MEMORY;
-            return NGX_ERROR;
-        }
-
-        file_ctx->thread_task = task;
-    }
-
-    task->handler = ngx_http_lua_io_thread_flush_file;
-
-    thread_ctx = task->ctx;
-    thread_ctx->fd = file_ctx->file.fd;
-    thread_ctx->chain = NULL;
-    thread_ctx->offset = 0;
-    thread_ctx->err = 0;
-    thread_ctx->nbytes = 0;
+    thread_ctx->flush = flush;
 
     if (ngx_http_lua_io_thread_post_task(task, file_ctx) != NGX_OK) {
         file_ctx->ft_type |= NGX_HTTP_LUA_IO_FT_TASK_POST_ERROR;
