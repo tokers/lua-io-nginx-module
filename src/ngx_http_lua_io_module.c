@@ -19,6 +19,7 @@
 #define NGX_HTTP_LUA_IO_FILE_READ_MODE              (1 << 0)
 #define NGX_HTTP_LUA_IO_FILE_WRITE_MODE             (1 << 1)
 #define NGX_HTTP_LUA_IO_FILE_APPEND_MODE            (1 << 2)
+#define NGX_HTTP_LUA_IO_FILE_CREATE_MODE            (1 << 3)
 
 #define ngx_http_lua_io_check_busy_reading(r, ctx, L)                         \
     if ((ctx)->read_waiting) {                                                \
@@ -322,7 +323,27 @@ ngx_http_lua_io_extract_mode(ngx_http_lua_io_file_ctx_t *ctx,
     flags = 0;
     ch = mode->data[0];
 
-    if (ch != 'r' && ch != 'w' && ch != 'a') {
+    switch (ch) {
+
+    case 'r':
+        flags = O_RDONLY;
+        ctx->mode |= NGX_HTTP_LUA_IO_FILE_READ_MODE;
+        break;
+
+    case 'w':
+        flags = O_WRONLY;
+        ctx->mode |= NGX_HTTP_LUA_IO_FILE_WRITE_MODE;
+        ctx->mode |= NGX_HTTP_LUA_IO_FILE_CREATE_MODE;
+        break;
+
+    case 'a':
+        flags = O_WRONLY;
+        ctx->mode |= NGX_HTTP_LUA_IO_FILE_APPEND_MODE;
+        ctx->mode |= NGX_HTTP_LUA_IO_FILE_WRITE_MODE;
+        ctx->mode |= NGX_HTTP_LUA_IO_FILE_CREATE_MODE;
+        break;
+
+    default:
         return NGX_ERROR;
     }
 
@@ -330,18 +351,6 @@ ngx_http_lua_io_extract_mode(ngx_http_lua_io_file_ctx_t *ctx,
         flags = O_RDWR;
         ctx->mode |= NGX_HTTP_LUA_IO_FILE_WRITE_MODE;
         ctx->mode |= NGX_HTTP_LUA_IO_FILE_READ_MODE;
-
-    } else if (ch == 'r') {
-        flags = O_RDONLY;
-        ctx->mode |= NGX_HTTP_LUA_IO_FILE_READ_MODE;
-
-    } else {
-        flags = O_WRONLY;
-        ctx->mode |= NGX_HTTP_LUA_IO_FILE_WRITE_MODE;
-
-        if (ch == 'a') {
-            ctx->mode |= NGX_HTTP_LUA_IO_FILE_APPEND_MODE;
-        }
     }
 
     if (ch != 'a' && (ctx->mode & NGX_HTTP_LUA_IO_FILE_WRITE_MODE)) {
@@ -478,7 +487,7 @@ ngx_http_lua_io_open(lua_State *L)
         return 2;
     }
 
-    create = (file_ctx->mode & NGX_HTTP_LUA_IO_FILE_WRITE_MODE) ? O_CREAT : 0;
+    create = (file_ctx->mode & NGX_HTTP_LUA_IO_FILE_CREATE_MODE) ? O_CREAT : 0;
 
     ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "lua io open \"%V\" r:%d w:%d a:%d",

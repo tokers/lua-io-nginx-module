@@ -150,7 +150,7 @@ lua io open mode:"r"
 
 
 
-=== TEST 5: ngx.io.open() is success and file is closed by file:close()
+=== TEST 5: ngx.io.open() is successful and file is closed by file:close()
 --- main_config
 thread_pool default threads=2 max_queue=10;
 --- config
@@ -342,15 +342,10 @@ thread_pool default threads=2 max_queue=10;
         content_by_lua_block {
             local io = require "ngx.io"
             local file, err = io.open("conf/nginx.con", "r+")
-            assert(type(file) == "table")
-            assert(err == nil)
-            local ok, err = file:close()
-            assert(ok)
-            assert(err == nil)
-
+            assert(file == nil)
+            assert(err == "no such file or directory")
             local code = os.execute("test -f " .. ngx.config.prefix() .. "/conf/nginx.con")
-            assert(code == 0)
-            code = os.execute("rm -f " .. ngx.config.prefix() .. "/conf/nginx.con")
+            assert(code ~= 0)
             ngx.print("OK")
         }
     }
@@ -361,13 +356,8 @@ GET /t
 --- grep_error_log: lua io open mode:"r+"
 --- grep_error_log_out
 lua io open mode:"r+"
---- grep_error_log: lua io file ctx finalize
---- grep_error_log_out
-lua io file ctx finalize
 --- no_error_log
 [error]
---- no_error_log
-lua io file ctx cleanup
 
 
 
