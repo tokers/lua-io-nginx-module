@@ -117,7 +117,7 @@ ngx_http_lua_io_thread_write_chain_to_file(void *data, ngx_log_t *log)
 
 eintr:
 
-        n = pwritev(ctx->fd, iovs, vec.count, offset);
+        n = writev(ctx->fd, iovs, vec.count);
 
         if (n == -1) {
             err = ngx_errno;
