@@ -49,6 +49,9 @@ typedef struct {
     off_t                       write_offset;
     off_t                       read_offset;
 
+    int                         whence;
+    off_t                       seek_offset;
+
     size_t                      nbytes;
 
     unsigned                    mode;
@@ -57,6 +60,7 @@ typedef struct {
     unsigned                    read_waiting:1;
     unsigned                    write_waiting:1;
     unsigned                    flush_waiting:1;
+    unsigned                    seeking:1;
     unsigned                    closing:1;
     unsigned                    closed:1;
 } ngx_http_lua_io_file_ctx_t;

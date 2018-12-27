@@ -55,6 +55,8 @@ static char  ngx_http_lua_io_metatable_key;
 static char  ngx_http_lua_io_file_ctx_metatable_key;
 
 static ngx_str_t  ngx_http_lua_io_thread_pool_default = ngx_string("default");
+static const char*  ngx_http_lua_io_seek_list[] = { "set", "cur", "end", NULL };
+static int  ngx_http_lua_io_seek_enum[] = { SEEK_SET, SEEK_CUR, SEEK_END };
 
 
 static int ngx_http_lua_io_create_module(lua_State *L);
@@ -62,6 +64,7 @@ static int ngx_http_lua_io_open(lua_State *L);
 static int ngx_http_lua_io_file_close(lua_State *L);
 static int ngx_http_lua_io_file_write(lua_State *L);
 static int ngx_http_lua_io_file_flush(lua_State *L);
+static int ngx_http_lua_io_file_seek(lua_State *L);
 static int ngx_http_lua_io_file_destory(lua_State *L);
 static void ngx_http_lua_io_file_cleanup(void *data);
 static void ngx_http_lua_io_coctx_cleanup(void *data);
@@ -72,6 +75,8 @@ static void ngx_http_lua_io_content_wev_handler(ngx_http_request_t *r);
 static ngx_int_t ngx_http_lua_io_resume(ngx_http_request_t *r);
 static void ngx_http_lua_io_before_yield(ngx_http_request_t *r,
     ngx_http_lua_io_file_ctx_t *file_ctx);
+static ngx_int_t ngx_http_lua_io_prepare_retvals(ngx_http_request_t *r,
+    ngx_http_lua_io_file_ctx_t *file_ctx, ngx_http_lua_co_ctx_t *coctx);
 static void *ngx_http_lua_io_create_loc_conf(ngx_conf_t *cf);
 static char *ngx_http_lua_io_merge_loc_conf(ngx_conf_t *cf, void *parent,
     void *child);
@@ -265,13 +270,13 @@ ngx_http_lua_io_create_module(lua_State *L)
     lua_pushcfunction(L, ngx_http_lua_io_file_flush);
     lua_setfield(L, -2, "flush");
 
+    lua_pushcfunction(L, ngx_http_lua_io_file_seek);
+    lua_setfield(L, -2, "seek");
+
 #if 0
     lua_pushcfunction(L, ngx_http_lua_io_file_read);
     lua_setfield(L, -2, "read");
 
-
-    lua_pushcfunction(L, ngx_http_lua_io_file_seek);
-    lua_setfield(L, -2, "seek");
 
     lua_pushcfunction(L, ngx_http_lua_io_file_lines);
     lua_setfield(L, -2, "lines");
@@ -579,7 +584,7 @@ ngx_http_lua_io_file_close(lua_State *L)
 
     if (NGX_UNLIKELY(ngx_http_lua_io_thread_post_write_task(ctx, ctx->bufs_out,
                                                             0)
-        == NGX_ERROR))
+                     == NGX_ERROR))
     {
         return ngx_http_lua_io_handle_error(L, r, ctx);
     }
@@ -798,7 +803,7 @@ ngx_http_lua_io_file_write(lua_State *L)
                    "lua io write through");
 
     if (NGX_UNLIKELY(ngx_http_lua_io_thread_post_write_task(file_ctx, out, 0)
-        == NGX_ERROR))
+                     == NGX_ERROR))
     {
         return ngx_http_lua_io_handle_error(L, r, file_ctx);
     }
@@ -887,7 +892,7 @@ ngx_http_lua_io_file_flush(lua_State *L)
     if (NGX_UNLIKELY(ngx_http_lua_io_thread_post_write_task(file_ctx,
                                                             file_ctx->bufs_out,
                                                             full)
-        == NGX_ERROR))
+                     == NGX_ERROR))
     {
         return ngx_http_lua_io_handle_error(L, r, file_ctx);
     }
@@ -901,6 +906,112 @@ ngx_http_lua_io_file_flush(lua_State *L)
                    "lua io flush saved co ctx:%p", file_ctx->coctx);
 
     return lua_yield(L, 0);
+}
+
+
+static int
+ngx_http_lua_io_file_seek(lua_State *L)
+{
+    off_t                        offset;
+    int                          n, whence, opt;
+    ngx_http_request_t          *r;
+    ngx_http_lua_io_loc_conf_t  *iocf;
+    ngx_http_lua_io_file_ctx_t  *file_ctx;
+
+    n = lua_gettop(L);
+
+    if (NGX_UNLIKELY(n > 3)) {
+        return luaL_error(L, "expecting one, two or three arguments,"
+                          " but got %d", n);
+    }
+
+    r = ngx_http_lua_get_request(L);
+    if (NGX_UNLIKELY(r == NULL)) {
+        return luaL_error(L, "no request found");
+    }
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_rawgeti(L, 1, NGX_HTTP_LUA_IO_FILE_CTX_INDEX);
+
+    file_ctx = lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    whence = SEEK_CUR;
+    offset = 0;
+
+    if (n >= 2) {
+        opt = luaL_checkoption(L, 2, "cur", ngx_http_lua_io_seek_list);
+        whence = ngx_http_lua_io_seek_enum[opt];
+
+        if (n >= 3) {
+            offset = (off_t) luaL_checkinteger(L, 3);
+        }
+    }
+
+    if (file_ctx == NULL || file_ctx->closed) {
+        iocf = ngx_http_get_module_loc_conf(r, ngx_http_lua_io_module);
+        if (iocf->log_errors) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                          "attempt to flush data on a closed file object");
+        }
+
+        lua_pushnil(L);
+        lua_pushliteral(L, "closed");
+        return 2;
+    }
+
+    ngx_http_lua_io_check_busy_reading(r, file_ctx, L);
+    ngx_http_lua_io_check_busy_writing(r, file_ctx, L);
+    ngx_http_lua_io_check_busy_flushing(r, file_ctx, L);
+
+    if (r != file_ctx->request) {
+        return luaL_error(L, "bad request");
+    }
+
+    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                   "lua io seek whence:%d offset:%O", whence, offset);
+
+    if (file_ctx->bufs_out == NULL) {
+        goto seek;
+    }
+
+    if (NGX_UNLIKELY(ngx_http_lua_io_thread_post_write_task(file_ctx,
+                                                            file_ctx->bufs_out,
+                                                            0)
+                     == NGX_ERROR))
+    {
+        return ngx_http_lua_io_handle_error(L, r, file_ctx);
+    }
+
+    file_ctx->write_waiting = 1;
+    file_ctx->seeking = 1;
+    file_ctx->bufs_out = NULL;
+    file_ctx->whence = whence;
+    file_ctx->seek_offset = offset;
+
+    ngx_http_lua_io_before_yield(r, file_ctx);
+
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                   "lua io seek saved co ctx:%p", file_ctx->coctx);
+
+    return lua_yield(L, 0);
+
+seek:
+
+    /* TODO read offset, buffers change */
+
+    offset = lseek(file_ctx->file.fd,  offset, whence);
+    if (offset < 0) {
+        file_ctx->error = ngx_errno;
+        return ngx_http_lua_io_handle_error(L, r, file_ctx);
+    }
+
+    if (!(file_ctx->mode & NGX_HTTP_LUA_IO_FILE_APPEND_MODE)) {
+        file_ctx->write_offset = offset;
+    }
+
+    lua_pushinteger(L, offset);
+    return 1;
 }
 
 
@@ -983,7 +1094,6 @@ ngx_http_lua_io_resume(ngx_http_request_t *r)
     ngx_http_lua_ctx_t            *lctx;
     ngx_http_lua_co_ctx_t         *coctx;
     ngx_http_lua_io_file_ctx_t    *file_ctx;
-    ngx_http_lua_io_thread_ctx_t  *thread_ctx;
 
     lctx = ngx_http_get_module_ctx(r, ngx_http_lua_module);
     if (lctx == NULL) {
@@ -1013,49 +1123,9 @@ ngx_http_lua_io_resume(ngx_http_request_t *r)
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "lua io %s done and resume", action);
 
+    n = ngx_http_lua_io_prepare_retvals(r, file_ctx, coctx);
+
     L = ngx_http_lua_get_lua_vm(r, lctx);
-
-    thread_ctx = file_ctx->thread_task->ctx;
-    if (thread_ctx->err) {
-        file_ctx->error = thread_ctx->err;
-        n = ngx_http_lua_io_handle_error(coctx->co, r, file_ctx);
-
-    } else if (file_ctx->write_waiting) {
-        file_ctx->write_offset += thread_ctx->nbytes;
-        file_ctx->write_waiting = 0;
-
-        n = 1;
-        lua_pushinteger(coctx->co, file_ctx->nbytes);
-
-        ngx_chain_update_chains(r->pool, &lctx->free_bufs, &lctx->busy_bufs,
-                                &thread_ctx->chain,
-                                (ngx_buf_tag_t) &ngx_http_lua_io_module);
-
-    } else if (file_ctx->flush_waiting) {
-        file_ctx->write_offset += thread_ctx->nbytes;
-        file_ctx->flush_waiting = 0;
-
-        if (file_ctx->closing) {
-            file_ctx->closing = 0;
-            ngx_http_lua_io_file_finalize(r, file_ctx);
-
-            if (file_ctx->ft_type || file_ctx->error) {
-                n = ngx_http_lua_io_handle_error(coctx->co, r, file_ctx);
-
-            } else {
-                n = 1;
-                lua_pushinteger(coctx->co, 1);
-            }
-
-        } else {
-            n = 1;
-            lua_pushinteger(coctx->co, 1);
-        }
-
-    } else {
-        file_ctx->read_waiting = 0;
-        n = 0;
-    }
 
     c = r->connection;
     nreqs = c->requests;
@@ -1201,4 +1271,77 @@ ngx_http_lua_io_before_yield(ngx_http_request_t *r,
     } else {
         r->write_event_handler = ngx_http_core_run_phases;
     }
+}
+
+
+static ngx_int_t
+ngx_http_lua_io_prepare_retvals(ngx_http_request_t *r,
+    ngx_http_lua_io_file_ctx_t *file_ctx, ngx_http_lua_co_ctx_t *coctx)
+{
+    off_t                          offset;
+    ngx_http_lua_ctx_t            *lctx;
+    ngx_http_lua_io_thread_ctx_t  *thread_ctx;
+
+    thread_ctx = file_ctx->thread_task->ctx;
+    if (thread_ctx->err) {
+        file_ctx->error = thread_ctx->err;
+        return ngx_http_lua_io_handle_error(coctx->co, r, file_ctx);
+    }
+
+    lctx = ngx_http_get_module_ctx(r, ngx_http_lua_module);
+
+    if (file_ctx->write_waiting) {
+        file_ctx->write_offset += thread_ctx->nbytes;
+        file_ctx->write_waiting = 0;
+
+        ngx_chain_update_chains(r->pool, &lctx->free_bufs, &lctx->busy_bufs,
+                                &thread_ctx->chain,
+                                (ngx_buf_tag_t) &ngx_http_lua_io_module);
+
+        if (file_ctx->seeking) {
+
+            file_ctx->seeking = 0;
+
+            offset = lseek(file_ctx->file.fd, file_ctx->seek_offset,
+                           file_ctx->whence);
+
+            if (offset < 0) {
+                file_ctx->error = ngx_errno;
+                return ngx_http_lua_io_handle_error(coctx->co, r, file_ctx);
+            }
+
+            if ((file_ctx->mode & NGX_HTTP_LUA_IO_FILE_APPEND_MODE) == 0) {
+                file_ctx->write_offset = offset;
+            }
+
+            lua_pushinteger(coctx->co, offset);
+
+        } else {
+            lua_pushinteger(coctx->co, file_ctx->nbytes);
+        }
+
+        return 1;
+    }
+
+    if (file_ctx->flush_waiting) {
+        file_ctx->write_offset += thread_ctx->nbytes;
+        file_ctx->flush_waiting = 0;
+
+        if (file_ctx->closing) {
+            file_ctx->closing = 0;
+            ngx_http_lua_io_file_finalize(r, file_ctx);
+
+            if (file_ctx->ft_type || file_ctx->error) {
+                return ngx_http_lua_io_handle_error(coctx->co, r, file_ctx);
+            }
+        }
+
+        lua_pushinteger(coctx->co, 1);
+        return 1;
+    }
+
+    /* TODO read */
+
+    file_ctx->read_waiting = 0;
+    return 0;
 }
