@@ -339,7 +339,7 @@ ngx_http_lua_io_extract_mode(ngx_http_lua_io_file_ctx_t *ctx,
         break;
 
     case 'a':
-        flags = O_WRONLY;
+        flags = O_WRONLY|O_APPEND;
         ctx->mode |= NGX_HTTP_LUA_IO_FILE_APPEND_MODE;
         ctx->mode |= NGX_HTTP_LUA_IO_FILE_WRITE_MODE;
         ctx->mode |= NGX_HTTP_LUA_IO_FILE_CREATE_MODE;
@@ -351,6 +351,10 @@ ngx_http_lua_io_extract_mode(ngx_http_lua_io_file_ctx_t *ctx,
 
     if (plus) {
         flags = O_RDWR;
+        if (ch == 'a') {
+            flags |= O_APPEND;
+        }
+
         ctx->mode |= NGX_HTTP_LUA_IO_FILE_WRITE_MODE;
         ctx->mode |= NGX_HTTP_LUA_IO_FILE_READ_MODE;
     }
