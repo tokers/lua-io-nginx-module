@@ -654,6 +654,7 @@ ngx_http_lua_io_file_write(lua_State *L)
 
     ngx_http_lua_io_check_busy_reading(r, file_ctx, L);
     ngx_http_lua_io_check_busy_writing(r, file_ctx, L);
+    ngx_http_lua_io_check_busy_flushing(r, file_ctx, L);
 
     if (NGX_UNLIKELY(!(file_ctx->mode & NGX_HTTP_LUA_IO_FILE_WRITE_MODE))) {
 
