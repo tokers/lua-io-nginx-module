@@ -424,7 +424,6 @@ ngx_http_lua_io_open(lua_State *L)
     ngx_http_lua_ctx_t          *ctx;
     ngx_http_lua_io_ctx_t       *ioctx;
     ngx_http_lua_io_file_ctx_t  *file_ctx;
-    ngx_file_t                  *file;
 
     n = lua_gettop(L);
 
@@ -500,11 +499,7 @@ ngx_http_lua_io_open(lua_State *L)
     }
 
     file_ctx->request = r;
-
-    file = &file_ctx->file;
-    file->fd = NGX_INVALID_FILE;
-    file->name = path;
-    file->log = r->connection->log;
+    file_ctx->fd = NGX_INVALID_FILE;
 
     cln = ngx_http_lua_cleanup_add(r, 0);
     if (cln == NULL) {
@@ -534,20 +529,20 @@ ngx_http_lua_io_open(lua_State *L)
                    (file_ctx->mode & NGX_HTTP_LUA_IO_FILE_WRITE_MODE) != 0,
                    (file_ctx->mode & NGX_HTTP_LUA_IO_FILE_APPEND_MODE) != 0);
 
-    file->fd = ngx_open_file(path.data, mode, create, S_IRUSR|S_IWUSR|S_IRGRP
-                             |S_IWGRP|S_IROTH|S_IWOTH);
+    file_ctx->fd = ngx_open_file(path.data, mode, create, S_IRUSR|S_IWUSR|S_IRGRP
+                                 |S_IWGRP|S_IROTH|S_IWOTH);
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                   "lua io open fd:%d", file->fd);
+                   "lua io open fd:%d", file_ctx->fd);
 
-    if (file->fd == NGX_INVALID_FILE) {
+    if (file_ctx->fd == NGX_INVALID_FILE) {
         file_ctx->error = ngx_errno;
         return ngx_http_lua_io_handle_error(L, r, file_ctx);
     }
 
     if ((file_ctx->mode & NGX_HTTP_LUA_IO_FILE_APPEND_MODE) != 0) {
 
-        offset = lseek(file->fd, 0, SEEK_END);
+        offset = lseek(file_ctx->fd, 0, SEEK_END);
         if (NGX_UNLIKELY(offset < 0)) {
             file_ctx->error = ngx_errno;
             return ngx_http_lua_io_handle_error(L, r, file_ctx);
@@ -1441,7 +1436,7 @@ ngx_http_lua_io_file_finalize(ngx_http_request_t *r,
     ctx->ft_type = 0;
     ctx->closed = 1;
 
-    if (ctx->file.fd != NGX_INVALID_FILE && ngx_close_file(ctx->file.fd) < 0) {
+    if (ctx->fd != NGX_INVALID_FILE && ngx_close_file(ctx->fd) < 0) {
         ctx->error = ngx_errno;
         ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
                       ngx_close_file_n " failed");
@@ -1594,7 +1589,7 @@ ngx_http_lua_io_file_do_seek(ngx_http_lua_io_file_ctx_t *file_ctx,
         offset = file_ctx->offset + offset;
     }
 
-    offset = lseek(file_ctx->file.fd, offset, whence);
+    offset = lseek(file_ctx->fd, offset, whence);
 
     if (offset < 0) {
         file_ctx->error = ngx_errno;

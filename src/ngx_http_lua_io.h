@@ -26,7 +26,7 @@
 
 
 typedef struct {
-    ngx_file_t                  file;
+    ngx_fd_t                    fd;
 
     ngx_int_t                 (*thread_handler)(ngx_thread_task_t *task,
                                                 ngx_file_t *file);

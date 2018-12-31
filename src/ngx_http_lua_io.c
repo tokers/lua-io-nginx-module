@@ -201,7 +201,7 @@ ngx_http_lua_io_thread_post_write_task(ngx_http_lua_io_file_ctx_t *file_ctx,
 
     ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "lua io thread write chain: %d, %p flush:%d",
-                   file_ctx->file.fd, cl, flush);
+                   file_ctx->fd, cl, flush);
 
     task = file_ctx->thread_task;
 
@@ -219,7 +219,7 @@ ngx_http_lua_io_thread_post_write_task(ngx_http_lua_io_file_ctx_t *file_ctx,
     task->handler = ngx_http_lua_io_thread_write_chain_to_file;
 
     thread_ctx = task->ctx;
-    thread_ctx->fd = file_ctx->file.fd;
+    thread_ctx->fd = file_ctx->fd;
     thread_ctx->chain = cl;
     thread_ctx->flush = flush;
 
@@ -243,7 +243,7 @@ ngx_http_lua_io_thread_post_read_task(ngx_http_lua_io_file_ctx_t *file_ctx,
     r = file_ctx->request;
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                   "lua io thread read: %d", file_ctx->file.fd);
+                   "lua io thread read: %d", file_ctx->fd);
 
     task = file_ctx->thread_task;
 
@@ -261,7 +261,7 @@ ngx_http_lua_io_thread_post_read_task(ngx_http_lua_io_file_ctx_t *file_ctx,
     task->handler = ngx_http_lua_io_thread_read_file;
 
     thread_ctx = task->ctx;
-    thread_ctx->fd = file_ctx->file.fd;
+    thread_ctx->fd = file_ctx->fd;
     thread_ctx->buf = buf->last;
     thread_ctx->size = buf->end - buf->last;
 
