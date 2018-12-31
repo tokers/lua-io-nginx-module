@@ -2,7 +2,7 @@ use Test::Nginx::Socket::Lua;
 
 repeat_each(1);
 
-plan tests => repeat_each() * (5 * 5 + 5 * 4);
+plan tests => repeat_each() * (5 * 5 + 6 * 4);
 
 log_level 'debug';
 
@@ -448,6 +448,10 @@ thread_pool default threads=2 max_queue=10;
             local ok, err = pcall(file.read, file, "bcc")
             assert(ok == false)
             ngx.print(err)
+
+            local ok, err = file:close()
+            assert(ok)
+            assert(err == nil)
         }
     }
 
@@ -456,3 +460,37 @@ GET /t
 --- response_body_like: bad pattern argument: bcc
 --- no_error_log eval
 ["error", "crit"]
+
+
+
+=== TEST 11: try to read a closed file
+--- main_config
+thread_pool default threads=2 max_queue=10;
+--- config
+    server_tokens off;
+    location /t {
+        lua_io_log_errors on;
+        content_by_lua_block {
+            local ngx_io = require "ngx.io"
+            local file, err = ngx_io.open("conf/nginx.conf", "r")
+            assert(type(file) == "table")
+            assert(err == nil)
+
+            local ok, err = file:close()
+            assert(ok)
+            assert(err == nil)
+
+            local data, err = file:read("*a")
+            assert(data == nil)
+            ngx.print(err)
+        }
+    }
+
+--- request
+GET /t
+--- response_body: closed
+--- grep_error_log: attempt to read data from a closed file object
+--- grep_error_log_out
+attempt to read data from a closed file object
+--- no_error_log eval
+["crit"]
