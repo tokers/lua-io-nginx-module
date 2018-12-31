@@ -72,6 +72,8 @@ static int ngx_http_lua_io_file_read(lua_State *L);
 static int ngx_http_lua_io_file_write(lua_State *L);
 static int ngx_http_lua_io_file_flush(lua_State *L);
 static int ngx_http_lua_io_file_seek(lua_State *L);
+static int ngx_http_lua_io_file_lines(lua_State *L);
+static int ngx_http_lua_io_file_lines_iter(lua_State *L);
 static int ngx_http_lua_io_file_destory(lua_State *L);
 static void ngx_http_lua_io_file_cleanup(void *data);
 static void ngx_http_lua_io_coctx_cleanup(void *data);
@@ -294,10 +296,8 @@ ngx_http_lua_io_create_module(lua_State *L)
     lua_pushcfunction(L, ngx_http_lua_io_file_seek);
     lua_setfield(L, -2, "seek");
 
-#if 0
     lua_pushcfunction(L, ngx_http_lua_io_file_lines);
     lua_setfield(L, -2, "lines");
-#endif
 
     lua_pushvalue(L, -1);
     lua_setfield(L, -2, "__index");
@@ -1104,7 +1104,7 @@ ngx_http_lua_io_file_seek(lua_State *L)
     ngx_http_lua_io_check_busy_writing(r, file_ctx, L);
     ngx_http_lua_io_check_busy_flushing(r, file_ctx, L);
 
-    if (r != file_ctx->request) {
+    if (NGX_UNLIKELY(r != file_ctx->request)) {
         return luaL_error(L, "bad request");
     }
 
@@ -1164,6 +1164,85 @@ ngx_http_lua_io_file_seek(lua_State *L)
 seek:
 
     return ngx_http_lua_io_file_do_seek(file_ctx, r, L, offset, whence);
+}
+
+
+static int
+ngx_http_lua_io_file_lines(lua_State *L)
+{
+    ngx_http_request_t          *r;
+
+    if (NGX_UNLIKELY(lua_gettop(L) > 1)) {
+        return luaL_error(L, "expecting one argument, but got %d",
+                          lua_gettop(L));
+    }
+
+    r = ngx_http_lua_get_request(L);
+    if (NGX_UNLIKELY(r == NULL)) {
+        return luaL_error(L, "no request found");
+    }
+
+    luaL_checktype(L, -1, LUA_TTABLE);
+
+    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                   "lua io file lines created an iterator");
+
+    lua_pushcclosure(L, ngx_http_lua_io_file_lines_iter, 1);
+    return 1;
+}
+
+
+static int
+ngx_http_lua_io_file_lines_iter(lua_State *L)
+{
+    ngx_http_request_t          *r;
+    ngx_http_lua_io_file_ctx_t  *file_ctx;
+    ngx_http_lua_io_loc_conf_t  *iocf;
+
+    r = ngx_http_lua_get_request(L);
+    if (NGX_UNLIKELY(r == NULL)) {
+        return luaL_error(L, "no request found");
+    }
+
+    lua_rawgeti(L, lua_upvalueindex(1), NGX_HTTP_LUA_IO_FILE_CTX_INDEX);
+    file_ctx = lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    if (file_ctx == NULL || file_ctx->closed) {
+        iocf = ngx_http_get_module_loc_conf(r, ngx_http_lua_io_module);
+        if (iocf->log_errors) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                          "attempt to read a line from a closed file object");
+        }
+
+        lua_pushnil(L);
+        lua_pushliteral(L, "closed");
+        return 2;
+    }
+
+    if(NGX_UNLIKELY(file_ctx->request != r)) {
+        return luaL_error(L, "bad request");
+    }
+
+    ngx_http_lua_io_check_busy_reading(r, file_ctx, L);
+    ngx_http_lua_io_check_busy_writing(r, file_ctx, L);
+    ngx_http_lua_io_check_busy_flushing(r, file_ctx, L);
+
+    if (NGX_UNLIKELY(!(file_ctx->mode & NGX_HTTP_LUA_IO_FILE_READ_MODE))) {
+
+        /* FIXME need to be compatible with libc? */
+        lua_pushnil(L);
+        lua_pushliteral(L, "operation not permitted");
+        return 2;
+    }
+
+    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                   "lua io file line iterator called");
+
+    file_ctx->input_filter = ngx_http_lua_io_read_line;
+    file_ctx->rest = 0;
+
+    return ngx_http_lua_io_file_read_helper(r, file_ctx, L);
 }
 
 
