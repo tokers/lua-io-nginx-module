@@ -46,15 +46,23 @@ ngx_http_lua_io_read_line(void *data, ngx_buf_t *buf, size_t size)
 {
     ngx_http_lua_io_file_ctx_t *file_ctx = data;
 
-    ngx_http_request_t  *r;
     u_char               c, *dst;
 
-    r = file_ctx->request;
+#if (NGX_DEBUG)
+    ngx_http_request_t  *r;
+#endif
+
 
     dst = file_ctx->buf_in->buf->last;
 
+#if (NGX_DEBUG)
+
+    r = file_ctx->request;
+
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "lua io read line");
+
+#endif
 
     while (size--) {
 

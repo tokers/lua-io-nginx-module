@@ -1317,7 +1317,6 @@ ngx_http_lua_io_thread_event_handler(ngx_event_t *ev)
 static ngx_int_t
 ngx_http_lua_io_resume(ngx_http_request_t *r)
 {
-    const char                    *action;
     ngx_int_t                      rc, n;
     ngx_uint_t                     nreqs;
     lua_State                     *L;
@@ -1325,6 +1324,10 @@ ngx_http_lua_io_resume(ngx_http_request_t *r)
     ngx_http_lua_ctx_t            *lctx;
     ngx_http_lua_co_ctx_t         *coctx;
     ngx_http_lua_io_file_ctx_t    *file_ctx;
+
+#if (NGX_DEBUG)
+    const char                    *action;
+#endif
 
     lctx = ngx_http_get_module_ctx(r, ngx_http_lua_module);
     if (lctx == NULL) {
@@ -1341,6 +1344,8 @@ ngx_http_lua_io_resume(ngx_http_request_t *r)
 
     file_ctx = coctx->data;
 
+#if (NGX_DEBUG)
+
     if (file_ctx->write_waiting) {
         action = "write";
 
@@ -1353,6 +1358,8 @@ ngx_http_lua_io_resume(ngx_http_request_t *r)
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "lua io %s done and resume", action);
+
+#endif
 
     n = ngx_http_lua_io_prepare_retvals(r, file_ctx, coctx);
 
