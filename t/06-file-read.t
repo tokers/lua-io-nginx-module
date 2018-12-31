@@ -2,7 +2,7 @@ use Test::Nginx::Socket::Lua;
 
 repeat_each(1);
 
-plan tests => repeat_each() * (5 * 5 + 6 * 4);
+plan tests => repeat_each() * (5 * 5 + 7 * 4);
 
 log_level 'debug';
 
@@ -268,9 +268,7 @@ thread_pool default threads=2 max_queue=10;
             while true do
                 local data, err = file:read(7)
                 assert(err == nil)
-                assert(data ~= nil)
-
-                if data == "" then
+                if data == nil then
                     break
                 end
 
@@ -321,14 +319,13 @@ thread_pool default threads=2 max_queue=10;
 
             while true do
                 local d1, err = file:read(4)
-                assert(d1)
-                assert(#d1 <= 4)
                 assert(err == nil)
 
-                if d1 == "" then
+                if d1 == nil then
                     break
                 end
 
+                assert(#d1 <= 4)
                 d[#d + 1] = d1
 
                 local d2, err = file:read("*l")
@@ -403,7 +400,7 @@ thread_pool default threads=2 max_queue=10;
             d[#d + 1] = d3
 
             local d3, err = file:read("*a")
-            assert(d3 == "")
+            assert(d3 == nil)
             assert(err == nil)
 
             local ok, err = file:close()
@@ -494,3 +491,53 @@ GET /t
 attempt to read data from a closed file object
 --- no_error_log eval
 ["crit"]
+
+
+
+=== TEST 12: read line until eof
+--- main_config
+thread_pool default threads=2 max_queue=10;
+--- config
+    server_tokens off;
+    location /t {
+        lua_io_log_errors on;
+        content_by_lua_block {
+            local ngx_io = require "ngx.io"
+            local file, err = ngx_io.open("conf/nginx.conf", "r")
+            assert(type(file) == "table")
+            assert(err == nil)
+
+            local len = 0
+
+            while true do
+                local data, err = file:read("*l")
+                assert(err == nil)
+                if data == nil then
+                    break
+                end
+
+                len = len + #data
+            end
+
+            local ok, err = file:close()
+            assert(ok)
+            assert(err == nil)
+
+            local name = ngx.config.prefix() .. "/conf/nginx.conf"
+            local file = io.open(name)
+            local len2 = 0
+            for line in file:lines() do
+                len2 = len2 + #line
+            end
+            file:close()
+
+            assert(len == len2)
+            ngx.print("data ok")
+        }
+    }
+
+--- request
+GET /t
+--- response_body: data ok
+--- no_error_log eval
+["crit", "error"]

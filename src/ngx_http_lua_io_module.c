@@ -1753,7 +1753,7 @@ ngx_http_lua_io_submit_input_data(ngx_http_request_t *r,
     ngx_http_lua_io_file_ctx_t *file_ctx, lua_State *L)
 {
     luaL_Buffer             luabuf;
-    ngx_int_t               nbufs;
+    ngx_int_t               nbufs, eof;
     ngx_chain_t            *cl, **ll;
     ngx_buf_t              *b;
     size_t                  size;
@@ -1786,9 +1786,15 @@ ngx_http_lua_io_submit_input_data(ngx_http_request_t *r,
         nbufs++;
     }
 
-    file_ctx->offset += offset;
+    eof = file_ctx->buffer.last == file_ctx->buffer.pos;
 
-    luaL_pushresult(&luabuf);
+    if (file_ctx->eof && eof && offset == 0) {
+        lua_pushnil(L);
+
+    } else {
+        file_ctx->offset += offset;
+        luaL_pushresult(&luabuf);
+    }
 
     if (nbufs > 1 && ll) {
         ioctx = ngx_http_get_module_ctx(r, ngx_http_lua_io_module);
@@ -1800,7 +1806,7 @@ ngx_http_lua_io_submit_input_data(ngx_http_request_t *r,
 
     b = &file_ctx->buffer;
 
-    if (b->pos == b->last) {
+    if (eof) {
         b->pos = b->start;
         b->last = b->start;
     }
