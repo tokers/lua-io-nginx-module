@@ -6,19 +6,12 @@ lua-io-nginx-module - Nginx C module to take over the file operations.
 
 # Table of Contents
 
--   [Name](#name)
+* [Name](#name)
+* [Status](#status)
+* [Synopsis](#synopsis)
+* [Description](#description)
+* [Author](#author)
     
--   [Status](#status)
-    
--   [Synopsis](#synopsis)
-    
--   [Description](#description)
-    
--   [Author](#author)
-    
--   [Copyright and License](#copyright-and-license)
-    
-
 # Status
 
 This Nginx module is currently considered experimental.
@@ -33,22 +26,24 @@ http {
   ...
     
   server {
-  	listen *:8080;
-    lua_io_thread_pool default;
-    location /read_by_line {
-      lua_io_read_buffer_size 8192;
-      content_by_lua_block {
-        local ngx_io = require "ngx.io"
-        local filename = "/tmp/foo.txt"
-        local file, err = ngx_io.open(filename, "r")
-        assert(file and not err)
-        for line in file:lines()
-          ngx.say(line)
-        end
-        local ok, err = file:close()
-        assert(ok and not err)
+      listen *:8080;
+      lua_io_thread_pool default;
+      location /read_by_line {
+          lua_io_read_buffer_size 8192;
+          content_by_lua_block {
+              local ngx_io = require "ngx.io"
+              local filename = "/tmp/foo.txt"
+              local file, err = ngx_io.open(filename, "r")
+              assert(file and not err)
+
+              for line in file:lines()
+                  ngx.say(line)
+              end
+
+              local ok, err = file:close()
+              assert(ok and not err)
+          }
       }
-    }
   }
 }
 ```
@@ -60,11 +55,5 @@ http {
 # Author
 
 Alex Zhang (张超) zchao1995@gmail.com, UPYUN Inc.
-
-[Back to TOC](#table-of-contents)
-
-# Copyright and License
-
-This Nginx C module is opened source under the [BSD 2](LICENSE).
 
 [Back to TOC](#table-of-contents)
