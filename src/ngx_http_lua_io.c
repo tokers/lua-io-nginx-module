@@ -139,9 +139,6 @@ eintr:
         ctx->nbytes += n;
     } while (cl);
 
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, err,
-                   "lua io thread wrote %uz bytes", ctx->nbytes);
-
 flush:
 
     if(ctx->flush && fsync(ctx->fd) < 0) {
