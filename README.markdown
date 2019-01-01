@@ -85,34 +85,6 @@ http {
               assert(ok and not err)
           }
       }
-
-      location /save_req_body {
-          content_by_lua_block {
-              local ngx_io = require "ngx.io"
-              local filename = "/tmp/req_body"
-              local file, err = ngx_io.open(filename, "w")
-              assert(file and not err)
-
-              local req_sock = ngx.req.socket()
-
-              while true do
-                  local data, err = file:read(512)
-                  if err ~= nil then
-                      ngx.log(ngx.ERR, "file:read() error: ", err)
-                      break
-                  end
-
-                  if data == nil then
-                      break
-                  end
-
-                  ngx.print(data)
-              end
-
-              local ok, err = file:close()
-              assert(ok and not err)
-          }
-      }
   }
 }
 ```
@@ -123,8 +95,8 @@ This Nginx C module provides the basic file operations APIs with a mechanism tha
 For now, it leverages Nginx's thread pool. I/O operations might be offloaded to one of the free thread,
 and current Lua thread will be yield until the I/O operations is done, in the meantime, Nginx can in turn process other events.
 
-It's worth to mention that the cost time of a single I/O operation won't reduce, it just transfer from the main thread (the one executes the event loop) to another exclusive thread.
-Indeed, the overhead might be higher, because of the extra tasks transferring, lock waiting, Lua thread resume (and can only resume in the next event loop) and so forth. Nevertheless, after the offloading, the main thread doesn't block due to the I/O operation, and this is the fundamental advantage compared with the native Lua I/O library.
+It's worth to mention that the cost time of a single I/O operation won't be reduced, it just transfer from the main thread (the one executes the event loop) to another exclusive thread.
+Indeed, the overhead might be a little higher, because of the extra tasks transferring, lock waiting, Lua thread resume (and can only resume in the next event loop) and so forth. Nevertheless, after the offloading, the main thread doesn't block due to the I/O operation, and this is the fundamental advantage compared with the native Lua I/O library.
 
 The APIs are similar with the [Lua I/O library](https://www.lua.org/pil/21.html), but with the totally different internal implementations, it doesn't use the stream file facilities in libc (but keep trying to be consistent with it), the buffer is maintained inside this module, and follows Cosocket's internals.
 
@@ -147,33 +119,33 @@ This limitations might be eliminated in the future if ngx_lua exposes more C fun
 
 ## lua_io_thread_pool
 
-**Syntax:** *lua_io_thread_pool thread-pool-name;*
-**Default:** *lua_io_thread_pool default;*
-**Context:** *http, server, location, if in location*
+**Syntax:** *lua_io_thread_pool thread-pool-name;*  
+**Default:** *lua_io_thread_pool default;*  
+**Context:** *http, server, location, if in location*  
 
 Specifies which thread pool should be used, note you should configure the thread pool by the `thread_pool` direction.
 
 ## lua_io_log_errors
 
-**Syntax:** *lua_io_log_errors on | off*
-**Default:** *lua_io_log_errors off;*
-**Context:** *http, server, location, if in location*
+**Syntax:** *lua_io_log_errors on | off*  
+**Default:** *lua_io_log_errors off;*  
+**Context:** *http, server, location, if in location*  
 
 Specifies whether logs the error message when failures occur. If you are already doing proper error handling and logging in your Lua code, then it is recommended to turn this directive off to prevent data flushing in your nginx error log files (which is usually rather expensive).
 
 ## lua_io_read_buffer_size
 
-**Syntax:** *lua_io_read_buffer_size <size>*
-**Default:** *lua_io_read_buffer_size 4k/8k;*
-**Context:** *http, server, location, if in location*
+**Syntax:** *lua_io_read_buffer_size <size>*  
+**Default:** *lua_io_read_buffer_size 4k/8k;*  
+**Context:** *http, server, location, if in location*  
 
 Specifies the buffer size used by the reading operations.
 
 ## lua_io_write_buffer_size
 
-**Syntax:** *lua_io_write_buffer_size <size>*
-**Default:** *lua_io_write_buffer_size 4k/8k;*
-**Context:** *http, server, location, if in location*
+**Syntax:** *lua_io_write_buffer_size <size>*  
+**Default:** *lua_io_write_buffer_size 4k/8k;*  
+**Context:** *http, server, location, if in location*  
 
 Specifies the buffer size used by the writing operations.
 
