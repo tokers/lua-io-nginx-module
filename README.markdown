@@ -174,21 +174,87 @@ The second optional parameter, specifes the open mode, can be any of the followi
 * `"r"`: read mode (the default);
 * `"w"`: write mode;
 * `"a"`: append mode;
-* `"r+`": update mode, all previous data is preserved;
-* `"w+`": update mode, all previous data is erased (file will be truncated);
-* `"a+`": append update mode, previous data is preserved, writing is only allowed at the end of file.
+* `"r+"`: update mode, all previous data is preserved;
+* `"w+"`: update mode, all previous data is erased (file will be truncated);
+* `"a+"`: append update mode, previous data is preserved, writing is only allowed at the end of file.
 
 ## file:read
 
+**Syntax:** *local data, err = file:read([format])*
+
+Reads some data from the file, according to the given formats, which specify what to read.
+
+The available formats are:
+
+* `"*a"`: reads the whole file, starting at the current position. On end of file, it returns `nil`.
+* `"*l"`: reads the next line (skipping the end of line), returning `nil` on end of file. This is the default format.
+* number: reads a string with up to this number of characters, returning nil on end of file. If number is zero, it reads nothing and returns an empty string, or nil on end of file.
+
+A Lua string will be returned as the expected data; In case of failure, `nil` and an error message will be given.
+
+This method is a synchronous operation and is 100% nonblocking.
+
 ## file:write
+
+**Syntax:** *local n, err = file:write(data)*
+
+Writes data to the file. Note `data` might be cached in the write buffer if suitable.
+
+the number of wrote bytes will be returned; In case of failure, `0` and an error message will be given.
+
+This method is a synchronous operation and is 100% nonblocking.
+
+**CAUTION:** If you opened the file with the append mode, then writing is only allowed at the end of file. The adjustment of the file offset and the write operation are performed as an atomic step, which is guaranteed by the `write` and `writev` system calls.
 
 ## file:seek
 
+**Syntax:** *local offset, err = file:seek([whence] [, offset])*
+
+Sets and gets the file position, measured from the beginning of the file, to the position given by `offset` plus a base specified by the string `whence`, as follows:
+
+* "set": base is position 0 (beginning of the file);
+* "cur": base is current position;
+* "end": base is end of file;
+
+In case of success, function seek returns the final file position, measured in bytes from the beginning of the file. If this method fails, it returns nil, plus a string describing the error.
+
+The default value for `whence` is "cur", and for `offset` is `0`. Therefore, the call file:seek() returns the current file position, without changing it; the call file:seek("set") sets the position to the beginning of the file (and returns `0`); and the call file:seek("end") sets the position to the end of the file, and returns its size.
+
+Cached write buffer data will be flushed to the file and cached read buffer data will be dropped. This method is a synchronous operation and is 100% nonblocking.
+
+**CAVEAT:** You should always call this method before you switch the I/O operations from `read` to `write` and vice versa.
+
 ## file:flush
+
+**Syntax:** *local ok, err = file:flush([sync])*
+
+Saves any written data to file. In case of success, it returns `1` and if this method fails, `nil` and a Lua string will be given (as the error message).
+
+An optional and sole parameter `sync` can be passed to specify whether this method should call `fsync` and wait until data was saved to the storage, default is `false`.
+
+This method is a synchronous operation and is 100% nonblocking.
 
 ## file:lines
 
+**Syntax:** *local iter = file:lines()*
+
+Returns an iterator that, each time it is called, returns a new line from the file. Therefore, the construction
+
+```lua
+for line in file:lines() do body end
+```
+
+will iterate over all lines of the file.
+
+The iterator is like the way `file:read("*l")`, and you can always mixed use of these read methods safely.
+
 ## file:close
+
+**Syntax:** *local ok, err = file:close()*
+
+Closes the file. Any cached write buffer data will be flushed to the file. This method is a synchronous operation and is 100% nonblocking.
+
+In case of success, this method returns `1` while `nil` plus a Lua string will be returned if errors occurred.
 
 # Author
 
