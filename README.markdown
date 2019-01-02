@@ -85,6 +85,44 @@ http {
               assert(ok and not err)
           }
       }
+
+      location /write {
+          content_by_lua_block {
+              local ngx_io = require "ngx.io"
+
+              local length = tonumber(ngx.var.http_content_length)
+              if not length then
+                  return ngx.exit(200)
+              end
+
+              local sock, err = ngx.req.socket()
+              if not sock then
+                  ngx.log(ngx.ERR, "ngx.req.socket() failed: ", err)
+                  return ngx.exit(500)
+              end
+
+              local file, err = ngx_io.open("/tmp/foo.txt", "w")
+              assert(file and not err)
+
+              repeat
+                  local size = length > 4096 and 4096 or length
+                  length = length - size
+                  local data, err = sock:receive(size)
+                  if err then
+                      ngx.log(ngx.ERR, "sock:receive() failed: ", err)
+                      return
+                  end
+
+                  local bytes, err = file:write(data)
+                  assert(bytes == size)
+                  assert(not err)
+              until length == 0
+
+              local ok, err = file:close()
+              assert(ok and not err)
+
+              return ngx.exit(200)
+       }
   }
 }
 ```
