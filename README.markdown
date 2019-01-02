@@ -113,7 +113,7 @@ This Nginx C module relies on the [lua-nginx-module](https://github.com/openrest
 ```
 
 Due to some existing limitations in ngx_lua, you must place the `--add-module=/path/to/lua-nginx-module/` **before** `--add-module=/path/to/lua-io-nginx-module/`.
-This limitations might be eliminated in the future if ngx_lua exposes more C functions and data structures.
+These limitations might be eliminated in the future if ngx_lua exposes more C functions and data structures.
 
 # Directives
 
@@ -188,7 +188,7 @@ The available formats are:
 
 * `"*a"`: reads the whole file, starting at the current position. On end of file, it returns `nil`.
 * `"*l"`: reads the next line (skipping the end of line), returning `nil` on end of file. This is the default format.
-* number: reads a string with up to this number of characters, returning nil on end of file. If number is zero, it reads nothing and returns an empty string, or nil on end of file.
+* number: reads a string with up to this number of characters, returning `nil` on end of file. If number is zero, it reads nothing and returns an empty string, or `nil` on end of file.
 
 A Lua string will be returned as the expected data; In case of failure, `nil` and an error message will be given.
 
