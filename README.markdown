@@ -130,11 +130,11 @@ http {
 # Description
 
 This Nginx C module provides the basic file operations APIs with a mechanism that never block Nginx's event loop.
-For now, it leverages Nginx's thread pool. I/O operations might be offloaded to one of the free thread,
-and current Lua thread will be yield until the I/O operations is done, in the meantime, Nginx can in turn process other events.
+For now, it leverages Nginx's thread pool, I/O operations might be offloaded to one of the free threads,
+and current Lua coroutine (Light Thread) will be yield until the I/O operations is done, in the meantime, Nginx in turn processes other events.
 
-It's worth to mention that the cost time of a single I/O operation won't be reduced, it just transfer from the main thread (the one executes the event loop) to another exclusive thread.
-Indeed, the overhead might be a little higher, because of the extra tasks transferring, lock waiting, Lua thread resume (and can only resume in the next event loop) and so forth. Nevertheless, after the offloading, the main thread doesn't block due to the I/O operation, and this is the fundamental advantage compared with the native Lua I/O library.
+It's worth to mention that the cost time of a single I/O operation won't be reduced, it was just transferred from the main thread (the one executes the event loop) to another exclusive thread.
+Indeed, the overhead might be a little higher, because of the extra tasks transferring, lock waiting, Lua coroutine resumption (and can only be resumed in the next event loop) and so forth. Nevertheless, after the offloading, the main thread doesn't block due to the I/O operation, and this is the fundamental advantage compared with the native Lua I/O library.
 
 The APIs are similar with the [Lua I/O library](https://www.lua.org/pil/21.html), but with the totally different internal implementations, it doesn't use the stream file facilities in libc (but keep trying to be consistent with it), the buffer is maintained inside this module, and follows Cosocket's internals.
 
