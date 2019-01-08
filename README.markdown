@@ -201,7 +201,7 @@ local ngx_io = require "ngx.io"
 
 ## ngx_io.open
 
-**Syntax:** *local file, err = ngx_io.open(filename [, mode])*
+**Syntax:** *local file, err = ngx_io.open(filename [, mode])*  
 **Context:** *rewrite_by_lua&#42;, access_by_lua&#42;, content_by_lua&#42;, ngx.timer.&#42;, ssl_certificate_by_lua&#42;, ssl_session_fetch_by_lua&#42;*
 
 Opens a file and returns the corresponding file object. In case of failure, `nil` and a Lua string will be given, which describes the error reason.
@@ -219,7 +219,7 @@ The second optional parameter, specifes the open mode, can be any of the followi
 
 ## file:read
 
-**Syntax:** *local data, err = file:read([format])*
+**Syntax:** *local data, err = file:read([format])*  
 **Context:** *rewrite_by_lua&#42;, access_by_lua&#42;, content_by_lua&#42;, ngx.timer.&#42;, ssl_certificate_by_lua&#42;, ssl_session_fetch_by_lua&#42;*
 
 Reads some data from the file, according to the given formats, which specify what to read.
@@ -236,7 +236,7 @@ This method is a synchronous operation and is 100% nonblocking.
 
 ## file:write
 
-**Syntax:** *local n, err = file:write(data)*
+**Syntax:** *local n, err = file:write(data)*  
 **Context:** *rewrite_by_lua&#42;, access_by_lua&#42;, content_by_lua&#42;, ngx.timer.&#42;, ssl_certificate_by_lua&#42;, ssl_session_fetch_by_lua&#42;*
 
 Writes data to the file. Note `data` might be cached in the write buffer if suitable.
@@ -249,7 +249,7 @@ This method is a synchronous operation and is 100% nonblocking.
 
 ## file:seek
 
-**Syntax:** *local offset, err = file:seek([whence] [, offset])*
+**Syntax:** *local offset, err = file:seek([whence] [, offset])*  
 **Context:** *rewrite_by_lua&#42;, access_by_lua&#42;, content_by_lua&#42;, ngx.timer.&#42;, ssl_certificate_by_lua&#42;, ssl_session_fetch_by_lua&#42;*
 
 
@@ -269,7 +269,7 @@ Cached write buffer data will be flushed to the file and cached read buffer data
 
 ## file:flush
 
-**Syntax:** *local ok, err = file:flush([sync])*
+**Syntax:** *local ok, err = file:flush([sync])*  
 **Context:** *rewrite_by_lua&#42;, access_by_lua&#42;, content_by_lua&#42;, ngx.timer.&#42;, ssl_certificate_by_lua&#42;, ssl_session_fetch_by_lua&#42;*
 
 
@@ -281,7 +281,7 @@ This method is a synchronous operation and is 100% nonblocking.
 
 ## file:lines
 
-**Syntax:** *local iter = file:lines()*
+**Syntax:** *local iter = file:lines()*  
 **Context:** *rewrite_by_lua&#42;, access_by_lua&#42;, content_by_lua&#42;, ngx.timer.&#42;, ssl_certificate_by_lua&#42;, ssl_session_fetch_by_lua&#42;*
 
 
@@ -297,7 +297,7 @@ The iterator is like the way `file:read("*l")`, and you can always mixed use of 
 
 ## file:close
 
-**Syntax:** *local ok, err = file:close()*
+**Syntax:** *local ok, err = file:close()*  
 **Context:** *rewrite_by_lua&#42;, access_by_lua&#42;, content_by_lua&#42;, ngx.timer.&#42;, ssl_certificate_by_lua&#42;, ssl_session_fetch_by_lua&#42;*
 
 
