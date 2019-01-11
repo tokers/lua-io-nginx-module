@@ -32,7 +32,7 @@ This Nginx module is currently considered experimental.
 # Synopsis
 
 ```nginx
-# configure a thread pool.
+# configure a thread pool, with 16 threads and a task queue which size is 64k.
 thread_pool default threads=16 max_queue=65536;
 
 http {
@@ -50,6 +50,7 @@ http {
               local file, err = ngx_io.open(filename, "r")
               assert(file and not err)
 
+              -- iterates the file by reading one line every time.
               for line in file:lines() do
                   ngx.say(line)
               end
@@ -68,6 +69,7 @@ http {
               assert(file and not err)
 
               while true do
+                  -- iterates the file by reading 512 bytes every time.
                   local data, err = file:read(512)
                   if err ~= nil then
                       ngx.log(ngx.ERR, "file:read() error: ", err)
@@ -87,6 +89,7 @@ http {
       }
 
       location /write {
+          lua_io_write_buffer_size 4k;
           content_by_lua_block {
               local ngx_io = require "ngx.io"
 
