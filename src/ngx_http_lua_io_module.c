@@ -142,6 +142,8 @@ static ngx_command_t  ngx_http_lua_io_commands[] = {
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_lua_io_loc_conf_t, write_buf_size),
       NULL },
+
+    ngx_null_command
 };
 
 
@@ -249,6 +251,17 @@ ngx_http_lua_io_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 
     if (conf->thread_pool == NULL) {
         conf->thread_pool = prev->thread_pool;
+    }
+
+    if (conf->thread_pool
+        && conf->thread_pool->lengths == NULL
+        && ngx_thread_pool_get(cf->cycle, &conf->thread_pool->value) == NULL)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "thread pool \"%V\" not found",
+                           &conf->thread_pool->value);
+
+        return NGX_CONF_ERROR;
     }
 
     return NGX_CONF_OK;
