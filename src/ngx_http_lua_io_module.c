@@ -321,14 +321,10 @@ ngx_http_lua_io_create_module(lua_State *L)
     lua_pushlightuserdata(L, &ngx_http_lua_io_file_ctx_metatable_key);
     lua_createtable(L, 0 /* narr */, 1 /* nrec */);
 
-    lua_pushvalue(L, -1);
-
     lua_pushcfunction(L, ngx_http_lua_io_file_destory);
     lua_setfield(L, -2, "__gc");
 
     lua_rawset(L, LUA_REGISTRYINDEX);
-
-    lua_pop(L, 1);
 
     return 1;
 }
