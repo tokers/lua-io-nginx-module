@@ -25,6 +25,10 @@ ngx_http_lua_io_read_chunk(void *data, ngx_buf_t *buf, size_t size)
         return NGX_OK;
     }
 
+    if(file_ctx->buf_in == NULL) {
+        return NGX_OK;
+    }
+
     if (size >= rest) {
         buf->pos += rest;
         file_ctx->buf_in->buf->last += rest;
@@ -64,6 +68,10 @@ ngx_http_lua_io_read_line(void *data, ngx_buf_t *buf, size_t size)
 
 #endif
 
+    if(file_ctx->buf_in == NULL) {
+        return NGX_OK;
+    }
+
     while (size--) {
 
         c = *buf->pos++;
@@ -97,6 +105,10 @@ ngx_int_t
 ngx_http_lua_io_read_all(void *data, ngx_buf_t *buf, size_t size)
 {
     ngx_http_lua_io_file_ctx_t *file_ctx = data;
+
+    if(file_ctx->buf_in == NULL) {
+        return NGX_OK;
+    }
 
     file_ctx->buf_in->buf->last += size;
     buf->pos += size;
